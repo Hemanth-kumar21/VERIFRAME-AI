@@ -240,9 +240,27 @@ export default function VideoResultView({ token }: { token: string }) {
   return (
     <main className="min-h-screen px-4 py-8 text-slate-100 sm:px-6 sm:py-12">
       <div className="mx-auto max-w-5xl space-y-6">
-        <header className="rounded-3xl border border-sky-400/20 bg-slate-950/50 p-6 sm:p-8">
-          <p className="text-xs uppercase tracking-[0.3em] text-sky-300">Very Frame AI</p>
-          <h1 className="mt-3 text-3xl font-semibold text-white">{text.title}</h1>
+        <header className="rounded-3xl border border-sky-400/20 bg-slate-950/50 p-6 sm:p-8 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div>
+            <p className="text-xs uppercase tracking-[0.3em] text-sky-300">Very Frame AI</p>
+            <h1 className="mt-2 text-2xl sm:text-3xl font-semibold text-white">{text.title}</h1>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <a
+              href={`${API_BASE_URL}/api/result/${encodeURIComponent(token)}/dossier`}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center rounded-xl bg-sky-500 px-3.5 py-2 text-xs font-semibold text-slate-950 hover:bg-sky-400 transition shadow-sm"
+            >
+              Forensic Dossier (HTML/PDF)
+            </a>
+            <Link
+              href="/cases"
+              className="inline-flex items-center rounded-xl border border-sky-800/60 bg-sky-950/40 px-3 py-2 text-xs font-medium text-sky-300 hover:bg-sky-900/40 transition"
+            >
+              Attach to Case
+            </Link>
+          </div>
         </header>
 
         <section className="grid gap-5 lg:grid-cols-[1.2fr_0.8fr]">

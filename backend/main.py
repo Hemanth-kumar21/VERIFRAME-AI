@@ -13,7 +13,8 @@ from typing import Any
 
 from fastapi import BackgroundTasks, FastAPI, File, Header, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import Response, StreamingResponse
+from fastapi.responses import HTMLResponse, Response, StreamingResponse
+from pydantic import BaseModel, Field
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
@@ -32,8 +33,25 @@ from .config import (
 )
 from .agent import analyze_image, investigate_video_evidence
 from .check_llm import check_llm_status
-from .db import get_insights, get_result_by_token, save_report, save_result
+from .correlation import correlate_case_evidence
+from .db import (
+    add_case_note,
+    attach_item_to_case,
+    create_case,
+    get_case,
+    get_case_audit_logs,
+    get_case_items,
+    get_insights,
+    get_result_by_token,
+    list_cases,
+    remove_item_from_case,
+    save_report,
+    save_result,
+    update_case,
+)
 from .explain import build_explanation
+from .integrity import generate_forensic_integrity_record
+from .report_generator import render_case_report_html, render_single_dossier_html
 from .share_card import create_share_card
 from .validation import validate_image_stream
 from .video_pipeline import VideoAnalysisError, analyze_video, validate_video_header
@@ -329,12 +347,24 @@ def _process_video_job(
             "hi": build_explanation(verdict, "hi", "simple"),
         }
         explanations[lang] = explanation
+        integrity_record = {}
+        try:
+            if video_path.exists():
+                integrity_record = generate_forensic_integrity_record(
+                    video_path.read_bytes(),
+                    filename=video_path.name,
+                    mime_type="video/mp4",
+                )
+        except Exception as integ_exc:
+            logger.warning("Could not compute video integrity (%s).", integ_exc)
+
         result = {
             "token": job_id,
             "verdict": verdict,
             "evidence_strength": video_result["evidence_strength"],
             "agreement": video_result["agreement"],
-            "tool_summaries": {"video": video_result},
+            "tool_summaries": {"video": video_result, "integrity": integrity_record},
+            "integrity": integrity_record,
             "trace": [
                 event
                 for event in job.events
@@ -468,6 +498,15 @@ def _process_analysis_job(
                 {"step": step, "status": status, **({"result": payload} if payload is not None else {})}
             ),
         )
+        integrity_record = generate_forensic_integrity_record(
+            contents,
+            filename=f"image{suffix}",
+            mime_type=f"image/{image_format.lower()}",
+        )
+        result["integrity"] = integrity_record
+        if "tool_summaries" not in result or not isinstance(result["tool_summaries"], dict):
+            result["tool_summaries"] = {}
+        result["tool_summaries"]["integrity"] = integrity_record
         result["token"] = job_id
         save_result(result)
         job.publish({"step": "save_result", "status": "completed"})
@@ -564,6 +603,169 @@ async def insights(authorization: str | None = Header(default=None)) -> dict[str
 @app.get("/api/samples")
 async def samples() -> dict[str, Any]:
     return {"samples": []}
+
+
+@app.get("/api/result/{token}/dossier")
+async def result_dossier(token: str) -> HTMLResponse:
+    entry = get_result_by_token(token)
+    if not entry:
+        raise HTTPException(status_code=404, detail="Result not found.")
+    html_content = render_single_dossier_html(entry)
+    return HTMLResponse(content=html_content, status_code=200)
+
+
+@app.get("/api/result/{token}/export.json")
+async def result_export(token: str) -> dict[str, Any]:
+    entry = get_result_by_token(token)
+    if not entry:
+        raise HTTPException(status_code=404, detail="Result not found.")
+    return entry
+
+
+# ==============================================================================
+# INVESTIGATION WORKSPACE & CASE ROUTES
+# ==============================================================================
+
+
+class CreateCaseRequest(BaseModel):
+    title: str = Field(..., min_length=1, max_length=200)
+    description: str = Field(default="", max_length=2000)
+    tags: list[str] = Field(default_factory=list)
+    priority: str = Field(default="normal")
+    investigator: str = Field(default="Lead Forensic Specialist")
+
+
+class UpdateCaseRequest(BaseModel):
+    title: str | None = None
+    description: str | None = None
+    status: str | None = None
+    priority: str | None = None
+    tags: list[str] | None = None
+    investigator: str | None = None
+
+
+class AddCaseNoteRequest(BaseModel):
+    author: str = Field(default="Investigator")
+    content: str = Field(..., min_length=1, max_length=4000)
+
+
+class AttachItemRequest(BaseModel):
+    token: str = Field(..., min_length=1)
+    item_type: str = Field(default="image")
+    label: str = Field(default="")
+    notes: str = Field(default="")
+    actor: str = Field(default="Investigator")
+
+
+@app.post("/api/cases")
+async def api_create_case(payload: CreateCaseRequest) -> dict[str, Any]:
+    return create_case(
+        title=payload.title,
+        description=payload.description,
+        tags=payload.tags,
+        priority=payload.priority,
+        investigator=payload.investigator,
+    )
+
+
+@app.get("/api/cases")
+async def api_list_cases(status: str | None = None) -> dict[str, Any]:
+    cases = list_cases(status=status)
+    return {"cases": cases, "count": len(cases)}
+
+
+@app.get("/api/cases/{case_id}")
+async def api_get_case(case_id: str) -> dict[str, Any]:
+    case_record = get_case(case_id)
+    if not case_record:
+        raise HTTPException(status_code=404, detail=f"Case '{case_id}' not found.")
+    items = get_case_items(case_id)
+    correlation = correlate_case_evidence(items)
+    return {
+        "case": case_record,
+        "items": items,
+        "correlation": correlation,
+    }
+
+
+@app.patch("/api/cases/{case_id}")
+async def api_update_case(case_id: str, payload: UpdateCaseRequest) -> dict[str, Any]:
+    updates = {k: v for k, v in payload.dict().items() if v is not None}
+    updated = update_case(case_id, updates)
+    if not updated:
+        raise HTTPException(status_code=404, detail=f"Case '{case_id}' not found.")
+    return updated
+
+
+@app.post("/api/cases/{case_id}/notes")
+async def api_add_case_note(case_id: str, payload: AddCaseNoteRequest) -> dict[str, Any]:
+    updated = add_case_note(case_id, author=payload.author, content=payload.content)
+    if not updated:
+        raise HTTPException(status_code=404, detail=f"Case '{case_id}' not found.")
+    return updated
+
+
+@app.post("/api/cases/{case_id}/attach")
+async def api_attach_item(case_id: str, payload: AttachItemRequest) -> dict[str, Any]:
+    case_record = get_case(case_id)
+    if not case_record:
+        raise HTTPException(status_code=404, detail=f"Case '{case_id}' not found.")
+    try:
+        attached = attach_item_to_case(
+            case_id=case_id,
+            token=payload.token,
+            item_type=payload.item_type,
+            label=payload.label,
+            notes=payload.notes,
+            actor=payload.actor,
+        )
+        return attached
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.delete("/api/cases/{case_id}/items/{token}")
+async def api_remove_item(case_id: str, token: str) -> dict[str, Any]:
+    success = remove_item_from_case(case_id, token)
+    if not success:
+        raise HTTPException(status_code=404, detail=f"Item '{token}' not found in case '{case_id}'.")
+    return {"status": "removed", "token": token}
+
+
+@app.get("/api/cases/{case_id}/audit")
+async def api_get_case_audit(case_id: str) -> dict[str, Any]:
+    case_record = get_case(case_id)
+    if not case_record:
+        raise HTTPException(status_code=404, detail=f"Case '{case_id}' not found.")
+    logs = get_case_audit_logs(case_id)
+    return {"case_id": case_id, "logs": logs}
+
+
+@app.get("/api/cases/{case_id}/report")
+async def api_case_report(case_id: str) -> HTMLResponse:
+    case_record = get_case(case_id)
+    if not case_record:
+        raise HTTPException(status_code=404, detail=f"Case '{case_id}' not found.")
+    items = get_case_items(case_id)
+    correlation = correlate_case_evidence(items)
+    html_content = render_case_report_html(case_record, items, correlation)
+    return HTMLResponse(content=html_content, status_code=200)
+
+
+@app.get("/api/cases/{case_id}/export.json")
+async def api_case_export(case_id: str) -> dict[str, Any]:
+    case_record = get_case(case_id)
+    if not case_record:
+        raise HTTPException(status_code=404, detail=f"Case '{case_id}' not found.")
+    items = get_case_items(case_id)
+    correlation = correlate_case_evidence(items)
+    audit = get_case_audit_logs(case_id)
+    return {
+        "case": case_record,
+        "items": items,
+        "correlation": correlation,
+        "audit_logs": audit,
+    }
 
 
 @app.get("/")

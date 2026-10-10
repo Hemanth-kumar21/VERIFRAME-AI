@@ -1,0 +1,19 @@
+{
+  "id": "/",
+  "name": "Very Frame AI",
+  "short_name": "Very Frame",
+  "description": "Evidence-led image review. An estimate, not proof.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#07111f",
+  "theme_color": "#07111f",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

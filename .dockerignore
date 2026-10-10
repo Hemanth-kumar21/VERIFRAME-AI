@@ -1,0 +1,10 @@
+.git
+.venv
+venv
+**/__pycache__
+**/*.py[cod]
+frontend/node_modules
+frontend/.next
+frontend/test-results
+frontend/playwright-report
+data/results.db

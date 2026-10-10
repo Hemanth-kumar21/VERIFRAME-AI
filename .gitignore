@@ -1,0 +1,14 @@
+node_modules/
+.next/
+out/
+.env
+.env.local
+__pycache__/
+.pytest_cache/
+venv/
+.venv/
+.DS_Store
+*.pyc
+frontend/.next/
+frontend/node_modules/
+frontend/test-results/

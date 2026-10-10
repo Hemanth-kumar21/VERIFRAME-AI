@@ -163,9 +163,19 @@ async def analyze(
     return {"job_id": token, "token": token, "status": "accepted"}
 
 
+def _is_ffmpeg_available() -> bool:
+    ffmpeg = shutil.which("ffmpeg")
+    ffprobe = shutil.which("ffprobe")
+    if ffmpeg and ffprobe:
+        return True
+    if ffmpeg and not ffprobe:
+        return True
+    return False
+
+
 @app.get("/api/video/config")
 async def video_config() -> dict[str, Any]:
-    ffmpeg_available = bool(shutil.which("ffmpeg") and shutil.which("ffprobe"))
+    ffmpeg_available = _is_ffmpeg_available()
     return {
         "available": ffmpeg_available,
         "formats": ["MP4", "MOV", "WebM"] if ffmpeg_available else [],
@@ -199,12 +209,13 @@ async def analyze_video_upload(
     if len(window) >= 10:
         raise HTTPException(status_code=429, detail="Video request rate limit exceeded. Try again in a minute.")
     window.append(now)
-    ffmpeg_available = bool(shutil.which("ffmpeg") and shutil.which("ffprobe"))
+    ffmpeg_available = _is_ffmpeg_available()
     if not ffmpeg_available:
         raise HTTPException(
             status_code=503,
             detail="Video analysis requires FFmpeg and ffprobe on the backend PATH.",
         )
+
 
     try:
         header = await file.read(64)

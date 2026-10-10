@@ -5,6 +5,7 @@ import math
 import re
 import shutil
 import subprocess
+import sys
 import tempfile
 import time
 from pathlib import Path
@@ -87,11 +88,81 @@ def _remaining_timeout(deadline: float) -> float:
 def _require_ffmpeg() -> tuple[str, str]:
     ffmpeg = shutil.which("ffmpeg")
     ffprobe = shutil.which("ffprobe")
-    if not ffmpeg or not ffprobe:
+    if not ffmpeg:
+        try:
+            import imageio_ffmpeg
+
+            ffmpeg = imageio_ffmpeg.get_ffmpeg_exe()
+        except Exception:
+            pass
+    if not ffprobe and ffmpeg:
+        candidate = Path(ffmpeg).parent / ("ffprobe.exe" if sys.platform == "win32" else "ffprobe")
+        if candidate.exists():
+            ffprobe = str(candidate)
+        else:
+            ffprobe = ffmpeg
+    if not ffmpeg:
         raise VideoAnalysisError(
-            "Video analysis requires FFmpeg and ffprobe on the backend PATH. Install both executables and restart the API."
+            "Video analysis requires FFmpeg on the backend PATH or installed in the environment."
         )
-    return ffmpeg, ffprobe
+    return ffmpeg, ffprobe or ffmpeg
+
+
+def _probe_video_with_ffmpeg(ffmpeg: str, path: str | Path) -> dict[str, Any]:
+    completed = subprocess.run(
+        [ffmpeg, "-hide_banner", "-nostdin", "-i", str(path)],
+        capture_output=True,
+        text=True,
+        timeout=30.0,
+        check=False,
+    )
+    stderr = completed.stderr
+    dur_match = re.search(r"Duration:\s*(\d+):(\d+):(\d+(?:\.\d+)?)", stderr)
+    if not dur_match:
+        raise VideoAnalysisError("The video duration could not be determined.")
+    duration = float(dur_match.group(1)) * 3600 + float(dur_match.group(2)) * 60 + float(dur_match.group(3))
+    if duration <= 0 or duration > VIDEO_MAX_DURATION_SECONDS:
+        raise VideoAnalysisError(
+            f"Video exceeds the {VIDEO_MAX_DURATION_SECONDS}-second duration limit."
+        )
+
+    vid_match = re.search(r"Stream.*Video:\s*(\w+).*?,\s*(\d+)x(\d+)", stderr)
+    if not vid_match:
+        raise VideoAnalysisError("The file does not contain a readable video track.")
+    codec = vid_match.group(1)
+    width, height = int(vid_match.group(2)), int(vid_match.group(3))
+    dimensions_fit = (
+        width <= VIDEO_MAX_RESOLUTION_WIDTH and height <= VIDEO_MAX_RESOLUTION_HEIGHT
+    ) or (
+        width <= VIDEO_MAX_RESOLUTION_HEIGHT and height <= VIDEO_MAX_RESOLUTION_WIDTH
+    )
+    if not dimensions_fit:
+        raise VideoAnalysisError(
+            f"Video resolution exceeds the configured {VIDEO_MAX_RESOLUTION_WIDTH}x{VIDEO_MAX_RESOLUTION_HEIGHT} limit."
+        )
+
+    fps_match = re.search(r"([0-9.]+)\s*fps", stderr) or re.search(r"([0-9.]+)\s*tbr", stderr)
+    frame_rate = float(fps_match.group(1)) if fps_match else 24.0
+    if frame_rate > VIDEO_MAX_FPS:
+        raise VideoAnalysisError(f"Video exceeds the {VIDEO_MAX_FPS:g} FPS limit.")
+
+    audio_streams = re.findall(r"Stream.*Audio:\s*(\w+)", stderr)
+    bitrate_match = re.search(r"bitrate:\s*(\d+)\s*kb/s", stderr)
+    bitrate = int(bitrate_match.group(1)) * 1000 if bitrate_match else None
+
+    return {
+        "duration_seconds": round(duration, 3),
+        "width": width,
+        "height": height,
+        "fps": round(frame_rate, 3),
+        "video_codec": codec,
+        "bitrate_bps": bitrate,
+        "frame_count": int(duration * frame_rate),
+        "container": Path(path).suffix.lstrip(".").lower() or "mp4",
+        "has_audio": bool(audio_streams),
+        "audio_codec": audio_streams[0] if audio_streams else None,
+        "audio_authenticity_assessed": False,
+    }
 
 
 def _parse_rate(value: str | None) -> float | None:
@@ -107,7 +178,7 @@ def _parse_rate(value: str | None) -> float | None:
 
 
 def probe_video(path: str | Path, deadline: float | None = None) -> dict[str, Any]:
-    _ffmpeg, ffprobe = _require_ffmpeg()
+    ffmpeg, ffprobe = _require_ffmpeg()
     started = time.monotonic()
     effective_deadline = deadline or (started + VIDEO_ANALYSIS_TIMEOUT_SECONDS)
     try:
@@ -130,12 +201,19 @@ def probe_video(path: str | Path, deadline: float | None = None) -> dict[str, An
     except subprocess.TimeoutExpired as exc:
         raise VideoAnalysisError("Video metadata inspection timed out. Try a shorter video.") from exc
     except OSError as exc:
-        raise VideoAnalysisError("ffprobe could not inspect this video file.") from exc
+        try:
+            return _probe_video_with_ffmpeg(ffmpeg, path)
+        except Exception:
+            raise VideoAnalysisError("ffprobe could not inspect this video file.") from exc
 
     if completed.returncode != 0:
-        raise VideoAnalysisError(
-            "The video container is corrupted or could not be read by ffprobe."
-        )
+        try:
+            return _probe_video_with_ffmpeg(ffmpeg, path)
+        except Exception:
+            raise VideoAnalysisError(
+                "The video container is corrupted or could not be read by ffprobe."
+            )
+
     try:
         payload = json.loads(completed.stdout)
     except (ValueError, TypeError) as exc:

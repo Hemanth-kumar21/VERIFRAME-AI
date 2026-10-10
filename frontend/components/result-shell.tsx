@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
+import AiContentDetectionCard, { AiContentDetectionData } from "./ai-content-detection-card";
 
 type JsonRecord = Record<string, unknown>;
 
@@ -785,6 +786,20 @@ export default function ResultShell() {
           </div>
         </section>
       )}
+
+      {/* ================================================================= */}
+      {/* AI-GENERATED CONTENT DETECTION & AUTHENTICITY SCORE SECTION       */}
+      {/* ================================================================= */}
+      <AiContentDetectionCard
+        detection={
+          (result.ai_content_detection as AiContentDetectionData | undefined) ??
+          ((toolSummaries as JsonRecord).ai_content_detection as AiContentDetectionData | undefined)
+        }
+        token={token}
+        mediaType={mediaType === "video" ? "video" : "image"}
+        fallbackVerdict={result.verdict}
+        fallbackStrength={result.evidence_strength}
+      />
 
       <section className="grid gap-5 lg:grid-cols-[1.05fr_0.95fr]">
         <div className="space-y-5">

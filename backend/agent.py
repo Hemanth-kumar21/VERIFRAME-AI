@@ -20,6 +20,7 @@ from .config import (
     LLM_MODEL,
     VISION_MODEL,
 )
+from .ai_score import compute_image_ai_detection_score
 from .explain import build_explanation
 from .grounding import review_grounding
 from .provenance import check_c2pa, read_metadata
@@ -546,11 +547,15 @@ def analyze_image(
     if "describe_image" not in outputs:
         what_was_not_checked.append("Vision-model image description was not requested or configured.")
 
+    ai_content_detection = compute_image_ai_detection_score(verdict, tool_summaries)
+    tool_summaries["ai_content_detection"] = ai_content_detection
+
     return {
         "token": None,
         "verdict": verdict["verdict"],
         "evidence_strength": verdict["evidence_strength"],
         "agreement": verdict["agreement"],
+        "ai_content_detection": ai_content_detection,
         "tool_summaries": tool_summaries,
         "limitations": [
             "This result is an estimate, not proof of authenticity or AI generation.",

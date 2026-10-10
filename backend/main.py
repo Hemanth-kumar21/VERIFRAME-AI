@@ -32,6 +32,7 @@ from .config import (
     VIDEO_MAX_SIZE_MB,
 )
 from .agent import analyze_image, investigate_video_evidence
+from .ai_score import compute_image_ai_detection_score, compute_video_ai_detection_score
 from .check_llm import check_llm_status
 from .correlation import correlate_case_evidence
 from .db import (
@@ -397,18 +398,22 @@ def _process_video_job(
         except Exception as integ_exc:
             logger.warning("Could not compute video integrity (%s).", integ_exc)
 
+        ai_content_detection = compute_video_ai_detection_score(video_result, nemotron_summary)
         result = {
             "token": job_id,
             "verdict": verdict,
             "evidence_strength": video_result["evidence_strength"],
             "agreement": video_result["agreement"],
+            "ai_content_detection": ai_content_detection,
             "tool_summaries": {
                 "video": video_result,
                 "integrity": integrity_record,
                 "nemotron": nemotron_summary,
+                "ai_content_detection": ai_content_detection,
             },
             "integrity": integrity_record,
             "nemotron": nemotron_summary,
+            "ai_content_detection": ai_content_detection,
             "trace": [
                 event
                 for event in job.events
@@ -551,6 +556,10 @@ def _process_analysis_job(
         if "tool_summaries" not in result or not isinstance(result["tool_summaries"], dict):
             result["tool_summaries"] = {}
         result["tool_summaries"]["integrity"] = integrity_record
+        if "ai_content_detection" not in result:
+            ai_score = compute_image_ai_detection_score(result, result.get("tool_summaries", {}))
+            result["ai_content_detection"] = ai_score
+            result["tool_summaries"]["ai_content_detection"] = ai_score
         result["token"] = job_id
         save_result(result)
         job.publish({"step": "save_result", "status": "completed"})

@@ -98,6 +98,8 @@ def save_result(payload: dict) -> dict:
             tool_summaries["integrity"] = payload["integrity"]
         if "nemotron" in payload and "nemotron" not in tool_summaries:
             tool_summaries["nemotron"] = payload["nemotron"]
+        if "ai_content_detection" in payload and "ai_content_detection" not in tool_summaries:
+            tool_summaries["ai_content_detection"] = payload["ai_content_detection"]
 
         existing = session.query(ResultRecord).filter(ResultRecord.token == payload["token"]).first()
         if existing:
@@ -146,6 +148,7 @@ def get_result_by_token(token: str) -> dict | None:
             "tool_summaries": summaries,
             "integrity": integrity,
             "nemotron": summaries.get("nemotron"),
+            "ai_content_detection": summaries.get("ai_content_detection"),
             "trace": record.trace,
             "limitations": record.limitations,
             "explanation": record.explanation,

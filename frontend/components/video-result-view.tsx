@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { getVideoPreview, releaseVideoPreview } from "@/lib/video-preview-store";
+import AiContentDetectionCard, { AiContentDetectionData } from "./ai-content-detection-card";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
@@ -90,8 +91,10 @@ type VideoResult = {
     video: VideoSummary;
     nemotron?: NemotronAnalysis;
     integrity?: Record<string, unknown>;
+    ai_content_detection?: AiContentDetectionData;
   };
   nemotron?: NemotronAnalysis;
+  ai_content_detection?: AiContentDetectionData;
 };
 
 type QAMessage = {
@@ -472,6 +475,17 @@ export default function VideoResultView({ token }: { token: string }) {
             </div>
           </div>
         </section>
+
+        {/* ================================================================= */}
+        {/* AI-GENERATED CONTENT DETECTION & AUTHENTICITY SCORE SECTION       */}
+        {/* ================================================================= */}
+        <AiContentDetectionCard
+          detection={result.ai_content_detection ?? result.tool_summaries.ai_content_detection}
+          token={token}
+          mediaType="video"
+          fallbackVerdict={result.verdict}
+          fallbackStrength={result.evidence_strength}
+        />
 
         {/* ================================================================= */}
         {/* NVIDIA NEMOTRON VIDEO INTELLIGENCE & EVENT TIMELINE SECTION       */}

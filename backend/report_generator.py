@@ -30,6 +30,18 @@ def render_single_dossier_html(result: dict[str, Any]) -> str:
     det_a = tool_summaries.get("detector_a") or {}
     det_b = tool_summaries.get("detector_b") or {}
     video_summary = tool_summaries.get("video") or {}
+    ai_det = tool_summaries.get("ai_content_detection") or result.get("ai_content_detection") or {}
+
+    ai_prob_val = ai_det.get("ai_probability")
+    human_prob_val = ai_det.get("human_probability")
+    ai_prob_str = f"{ai_prob_val:.1f}%" if ai_prob_val is not None else "Inconclusive / N/A"
+    human_prob_str = f"{human_prob_val:.1f}%" if human_prob_val is not None else "Inconclusive / N/A"
+    ai_classification = html.escape(str(ai_det.get("classification") or ("Likely AI-Generated" if verdict == "Likely AI" else "Likely Human-Created" if verdict == "No AI signs found" else "Inconclusive")))
+    ai_confidence = html.escape(str(ai_det.get("confidence") or ("High" if strength == "Strong" and agreement == "High" else "Medium" if strength == "Moderate" else "Low")))
+    ai_analyzed_frames = ai_det.get("analyzed_frames") or (int(video_summary.get("analyzed_frame_count", 1)) if video_summary else 1)
+    ai_evidence_list = ai_det.get("evidence") or []
+    ai_evidence_items = "".join(f"<li>{html.escape(str(e))}</li>" for e in ai_evidence_list) or "<li>Consensus detector evaluation completed across sampled representations.</li>"
+    ai_score_label = html.escape(str(ai_det.get("score_label") or "AI-Likelihood Score"))
 
     # Explanation
     explanation = result.get("explanation") or {}
@@ -206,8 +218,34 @@ def render_single_dossier_html(result: dict[str, Any]) -> str:
     </div>
   </div>
 
+  <div class="card" style="border: 1px solid var(--primary);">
+    <div class="card-title" style="color: var(--primary);">2. AI Content Detection & Authenticity Scoring</div>
+    <div class="grid-2">
+      <div class="metric-item">
+        <div class="metric-label">AI-Generated Probability ({ai_score_label})</div>
+        <div class="metric-val" style="color: #f43f5e; font-size: 1.15rem;">{ai_prob_str}</div>
+      </div>
+      <div class="metric-item">
+        <div class="metric-label">Likely Human-Created Probability</div>
+        <div class="metric-val" style="color: #10b981; font-size: 1.15rem;">{human_prob_str}</div>
+      </div>
+      <div class="metric-item">
+        <div class="metric-label">Final Classification</div>
+        <div class="metric-val">{ai_classification}</div>
+      </div>
+      <div class="metric-item">
+        <div class="metric-label">Confidence Level & Frames Evaluated</div>
+        <div class="metric-val">{ai_confidence} Confidence &bull; {ai_analyzed_frames} frame(s) analyzed</div>
+      </div>
+    </div>
+    <div style="margin-top: 14px;">
+      <div class="metric-label" style="margin-bottom: 6px;">Visual & Temporal Signals Identified:</div>
+      <ul>{ai_evidence_items}</ul>
+    </div>
+  </div>
+
   <div class="card">
-    <div class="card-title">2. Empirical Forensic Signals</div>
+    <div class="card-title">3. Empirical Forensic Signals</div>
     <div class="grid-2">
       <div class="metric-item">
         <div class="metric-label">Evidence Strength</div>
@@ -229,12 +267,12 @@ def render_single_dossier_html(result: dict[str, Any]) -> str:
   </div>
 
   <div class="card">
-    <div class="card-title">3. Investigator Synthesis & Narrative</div>
+    <div class="card-title">4. Investigator Synthesis & Narrative</div>
     <p style="font-size: 0.95rem; line-height: 1.6; white-space: pre-wrap;">{exp_text_escaped}</p>
   </div>
 
   <div class="card">
-    <div class="card-title">4. Scope, Limitations & Non-Manufactured Evidence</div>
+    <div class="card-title">5. Scope, Limitations & Non-Manufactured Evidence</div>
     <ul>{limitation_items}</ul>
   </div>
 

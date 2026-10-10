@@ -96,6 +96,8 @@ def save_result(payload: dict) -> dict:
         tool_summaries = dict(payload.get("tool_summaries") or {})
         if "integrity" in payload and "integrity" not in tool_summaries:
             tool_summaries["integrity"] = payload["integrity"]
+        if "nemotron" in payload and "nemotron" not in tool_summaries:
+            tool_summaries["nemotron"] = payload["nemotron"]
 
         existing = session.query(ResultRecord).filter(ResultRecord.token == payload["token"]).first()
         if existing:
@@ -143,6 +145,7 @@ def get_result_by_token(token: str) -> dict | None:
             "agreement": record.agreement,
             "tool_summaries": summaries,
             "integrity": integrity,
+            "nemotron": summaries.get("nemotron"),
             "trace": record.trace,
             "limitations": record.limitations,
             "explanation": record.explanation,

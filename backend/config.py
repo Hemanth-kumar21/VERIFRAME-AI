@@ -46,6 +46,13 @@ LLM_MODEL = os.getenv("LLM_MODEL", "").strip()
 VISION_MODEL = os.getenv("VISION_MODEL")
 INSIGHTS_ACCESS_TOKEN = os.getenv("INSIGHTS_ACCESS_TOKEN")
 
+# NVIDIA Nemotron Multimodal Video Reasoning Configuration
+NVIDIA_API_KEY = os.getenv("NVIDIA_API_KEY", "").strip()
+NVIDIA_BASE_URL = os.getenv("NVIDIA_BASE_URL", "https://integrate.api.nvidia.com/v1/chat/completions").strip()
+NVIDIA_MODEL = os.getenv("NVIDIA_MODEL", "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning").strip()
+NVIDIA_MAX_TOKENS = int(os.getenv("NVIDIA_MAX_TOKENS", "2048"))
+NVIDIA_REASONING_BUDGET = int(os.getenv("NVIDIA_REASONING_BUDGET", "1024"))
+
 DETECTOR_A_MODEL = os.getenv("DETECTOR_A_MODEL", "").strip()
 DETECTOR_A_AI_LABEL = os.getenv("DETECTOR_A_AI_LABEL", "").strip()
 DETECTOR_B_MODEL = os.getenv("DETECTOR_B_MODEL", "").strip()

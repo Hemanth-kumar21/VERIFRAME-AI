@@ -59,6 +59,10 @@ const STEP_DETAILS: Record<string, { title: string; description: string }> = {
     title: "Video analysis",
     description: "Reporting whether the submitted video could be processed safely.",
   },
+  nemotron_video_understanding: {
+    title: "NVIDIA Nemotron Video Intelligence",
+    description: "Analyzing chronological sampled frames with NVIDIA Nemotron-3-Nano-Omni 30B reasoning to extract actions, events, and timestamps.",
+  },
   save_result: {
     title: "Saving result",
     description: "Persisting the result summary and completed checks.",

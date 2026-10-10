@@ -51,6 +51,7 @@ from .db import (
 )
 from .explain import build_explanation
 from .integrity import generate_forensic_integrity_record
+from .nvidia_client import analyze_video_nemotron, ask_video_nemotron, get_nvidia_status
 from .report_generator import render_case_report_html, render_single_dossier_html
 from .share_card import create_share_card
 from .validation import validate_image_stream
@@ -317,16 +318,54 @@ def _process_video_job(
 ) -> None:
     try:
         job.publish({"step": "investigation", "status": "running"})
-        video_result = analyze_video(
-            video_path,
-            progress_callback=lambda step, status, payload=None: job.publish(
-                {
-                    "step": step,
-                    "status": status,
-                    **({"result": payload} if payload is not None else {}),
-                }
-            ),
+        progress_cb = lambda step, status, payload=None: job.publish(
+            {
+                "step": step,
+                "status": status,
+                **({"result": payload} if payload is not None else {}),
+            }
         )
+        try:
+            video_result = analyze_video(
+                video_path,
+                progress_callback=progress_cb,
+                return_sampled_images=True,
+            )
+        except TypeError:
+            video_result = analyze_video(
+                video_path,
+                progress_callback=progress_cb,
+            )
+        sampled_images = video_result.pop("_sampled_images", [])
+        nemotron_summary: dict[str, Any] = {}
+        if sampled_images:
+            job.publish({"step": "nemotron_video_understanding", "status": "running"})
+            try:
+                nemotron_summary = analyze_video_nemotron(
+                    sampled_images,
+                    video_result.get("video_info", {}),
+                )
+                events_count = len(nemotron_summary.get("timestamped_events", []))
+                job.publish(
+                    {
+                        "step": "nemotron_video_understanding",
+                        "status": "completed",
+                        "result": {
+                            "summary": nemotron_summary.get("summary", "")[:120],
+                            "events_count": events_count,
+                        },
+                    }
+                )
+            except Exception as nem_exc:
+                logger.warning("Nemotron video analysis failed (%s).", nem_exc)
+                job.publish(
+                    {
+                        "step": "nemotron_video_understanding",
+                        "status": "unavailable",
+                        "result": str(nem_exc),
+                    }
+                )
+
         verdict = video_result["verdict"]
         explanation, investigator_status = investigate_video_evidence(
             video_result,
@@ -363,8 +402,13 @@ def _process_video_job(
             "verdict": verdict,
             "evidence_strength": video_result["evidence_strength"],
             "agreement": video_result["agreement"],
-            "tool_summaries": {"video": video_result, "integrity": integrity_record},
+            "tool_summaries": {
+                "video": video_result,
+                "integrity": integrity_record,
+                "nemotron": nemotron_summary,
+            },
             "integrity": integrity_record,
+            "nemotron": nemotron_summary,
             "trace": [
                 event
                 for event in job.events
@@ -766,6 +810,44 @@ async def api_case_export(case_id: str) -> dict[str, Any]:
         "correlation": correlation,
         "audit_logs": audit,
     }
+
+
+# ==============================================================================
+# NVIDIA NEMOTRON VIDEO UNDERSTANDING & GROUNDED Q&A ROUTES
+# ==============================================================================
+
+
+@app.get("/api/nvidia/status")
+async def nvidia_status() -> dict[str, Any]:
+    return get_nvidia_status()
+
+
+class AskVideoRequest(BaseModel):
+    question: str = Field(..., min_length=1, max_length=1000)
+    token: str | None = None
+
+
+@app.post("/api/video/{token}/ask")
+async def api_ask_video(token: str, payload: AskVideoRequest) -> dict[str, Any]:
+    entry = get_result_by_token(token)
+    if not entry:
+        raise HTTPException(status_code=404, detail="Video analysis result not found.")
+
+    summaries = entry.get("tool_summaries") or {}
+    nemotron_data = summaries.get("nemotron") or entry.get("nemotron") or {}
+    video_summary = summaries.get("video") or {}
+    video_info = video_summary.get("video_info") or {}
+
+    response = ask_video_nemotron(payload.question, nemotron_data, video_info)
+    response["token"] = token
+    return response
+
+
+@app.post("/api/video/ask")
+async def api_ask_video_alt(payload: AskVideoRequest) -> dict[str, Any]:
+    if not payload.token:
+        raise HTTPException(status_code=400, detail="Video analysis token is required.")
+    return await api_ask_video(payload.token, payload)
 
 
 @app.get("/")

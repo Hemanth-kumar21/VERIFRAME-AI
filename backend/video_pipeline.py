@@ -605,6 +605,7 @@ def aggregate_video_evidence(
 def analyze_video(
     video_path: str | Path,
     progress_callback: ProgressCallback | None = None,
+    return_sampled_images: bool = False,
 ) -> dict[str, Any]:
     started = time.monotonic()
     deadline = started + VIDEO_ANALYSIS_TIMEOUT_SECONDS
@@ -627,6 +628,7 @@ def analyze_video(
     if not timestamps:
         raise VideoAnalysisError("No representative video frames could be selected.")
     frames: list[dict[str, Any]] = []
+    sampled_images: list[dict[str, Any]] = []
     scene_points = [0.0, *scene_changes]
     _emit(progress_callback, "sample_frames", "running")
     with tempfile.TemporaryDirectory(prefix="veriframe_video_frames_") as frame_directory:
@@ -634,6 +636,12 @@ def analyze_video(
             _remaining_timeout(deadline)
             frame_path = Path(frame_directory) / f"frame_{index:04d}.jpg"
             _extract_frame(video_path, timestamp, frame_path, deadline)
+            if return_sampled_images and len(sampled_images) < 6:
+                sampled_images.append({
+                    "timestamp": round(timestamp, 3),
+                    "frame_index": round(timestamp * video_info["fps"]),
+                    "frame_bytes": frame_path.read_bytes(),
+                })
             quality = assess_frame_quality(frame_path)
             nearest_scene = max(
                 (point for point in scene_points if point <= timestamp),
@@ -721,4 +729,6 @@ def analyze_video(
             "elapsed_seconds": round(time.monotonic() - started, 3),
         }
     )
+    if return_sampled_images:
+        aggregate["_sampled_images"] = sampled_images
     return aggregate

@@ -13,3 +13,5 @@ frontend/.next/
 frontend/node_modules/
 frontend/test-results/
 scratch/
+backend.db
+*.db-journal

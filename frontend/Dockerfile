@@ -17,7 +17,7 @@ COPY package.json package-lock.json ./
 RUN npm ci --omit=dev && npm cache clean --force
 COPY --from=builder /app/.next ./.next
 COPY --from=builder /app/public ./public
-RUN addgroup -S nextjs && adduser -S nextjs -G nextjs \
+RUN groupadd --system --gid 1001 nextjs && useradd --system --uid 1001 -g nextjs nextjs \
     && chown -R nextjs:nextjs /app
 USER nextjs
 EXPOSE 3000

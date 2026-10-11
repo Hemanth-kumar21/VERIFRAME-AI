@@ -1,0 +1,30 @@
+# Veriframe AI - Production Reverse Proxy with Automatic SSL/TLS
+# Set SERVER_NAME in .env (e.g., SERVER_NAME=veriframe.example.com or SERVER_NAME=:80 for raw IP)
+
+{$SERVER_NAME::80} {
+    encode zstd gzip
+
+    # Route API endpoints directly to backend service
+    handle /api/* {
+        reverse_proxy api:8000 {
+            header_up Host {host}
+            header_up X-Real-IP {remote_host}
+            header_up X-Forwarded-For {remote_host}
+            header_up X-Forwarded-Proto {scheme}
+        }
+    }
+
+    handle /health {
+        reverse_proxy api:8000
+    }
+
+    # Route all other web requests to Next.js frontend
+    handle {
+        reverse_proxy frontend:3000 {
+            header_up Host {host}
+            header_up X-Real-IP {remote_host}
+            header_up X-Forwarded-For {remote_host}
+            header_up X-Forwarded-Proto {scheme}
+        }
+    }
+}

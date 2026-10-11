@@ -40,7 +40,7 @@ if min(
 if not 0 < VIDEO_SCENE_THRESHOLD <= 1:
     raise ValueError("VIDEO_SCENE_THRESHOLD must be greater than 0 and no greater than 1.")
 
-LLM_API_KEY = os.getenv("LLM_API_KEY")
+LLM_API_KEY = os.getenv("LLM_API_KEY") or os.getenv("NVIDIA_API_KEY")
 LLM_BASE_URL = os.getenv("LLM_BASE_URL", "https://integrate.api.nvidia.com/v1")
 LLM_MODEL = os.getenv("LLM_MODEL", "").strip()
 VISION_MODEL = os.getenv("VISION_MODEL")

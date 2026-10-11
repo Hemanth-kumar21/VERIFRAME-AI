@@ -1,0 +1,26 @@
+services:
+  - type: web
+    name: veriframe-api
+    runtime: docker
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: .
+    plan: free
+    region: oregon
+    branch: hackathon-upgrade
+    envVars:
+      - key: PYTHONUNBUFFERED
+        value: "1"
+      - key: DEMO_DETECTORS
+        value: "true"
+      - key: DETECTOR_A_MODEL
+        value: "demo-edge"
+      - key: DETECTOR_A_AI_LABEL
+        value: "ai"
+      - key: DETECTOR_B_MODEL
+        value: "demo-entropy"
+      - key: DETECTOR_B_AI_LABEL
+        value: "ai"
+      - key: NVIDIA_API_KEY
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false

@@ -214,18 +214,29 @@ def analyze_video_nemotron(
         raw_text = choices[0].get("message", {}).get("content", "").strip()
         parsed_data = _extract_json(raw_text)
 
+        def _ensure_list(val: Any) -> list[str]:
+            if isinstance(val, list):
+                return [str(x).strip() for x in val if x]
+            if isinstance(val, str) and val.strip():
+                return [val.strip()]
+            return []
+
+        parsed_limitations = _ensure_list(parsed_data.get("limitations"))
+        if not parsed_limitations:
+            parsed_limitations = [
+                "Sparse frame sampling intervals may miss rapid actions occurring between sampled timestamps."
+            ]
+
         # Standardize and validate structured response
         return {
             "status": "completed",
             "model": NVIDIA_MODEL,
             "sampled_frames_used": len(selected_frames),
             "summary": parsed_data.get("summary") or raw_text[:500],
-            "scene_descriptions": parsed_data.get("scene_descriptions") or [],
-            "timestamped_events": parsed_data.get("timestamped_events") or [],
-            "important_observations": parsed_data.get("important_observations") or [],
-            "limitations": parsed_data.get("limitations") or [
-                "Sparse frame sampling intervals may miss rapid actions occurring between sampled timestamps."
-            ],
+            "scene_descriptions": parsed_data.get("scene_descriptions") if isinstance(parsed_data.get("scene_descriptions"), list) else [],
+            "timestamped_events": parsed_data.get("timestamped_events") if isinstance(parsed_data.get("timestamped_events"), list) else [],
+            "important_observations": _ensure_list(parsed_data.get("important_observations")),
+            "limitations": parsed_limitations,
             "raw_response": raw_text if not parsed_data.get("summary") else None,
         }
 

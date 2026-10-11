@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
@@ -65,7 +65,7 @@ type CorrelationData = {
   investigative_leads: string[];
 };
 
-export default function CaseWorkspacePage() {
+function CaseWorkspaceContent() {
   const params = useParams();
   const caseId = typeof params?.caseId === "string" ? params.caseId : "";
 
@@ -610,5 +610,21 @@ export default function CaseWorkspacePage() {
         </div>
       )}
     </main>
+  );
+}
+
+export default function CaseWorkspacePage() {
+  return (
+    <Suspense
+      fallback={
+        <main className="min-h-screen px-4 py-8 text-slate-100 sm:px-6 sm:py-12">
+          <div className="mx-auto max-w-6xl p-8 text-slate-300">
+            Loading investigation case workspace…
+          </div>
+        </main>
+      }
+    >
+      <CaseWorkspaceContent />
+    </Suspense>
   );
 }

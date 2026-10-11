@@ -4,6 +4,12 @@ import { useState } from "react";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
+function toList(val: unknown): string[] {
+  if (Array.isArray(val)) return val.map((x) => String(x).trim()).filter(Boolean);
+  if (typeof val === "string" && val.trim()) return [val.trim()];
+  return [];
+}
+
 export type AiContentDetectionData = {
   ai_probability: number | null;
   human_probability: number | null;
@@ -245,17 +251,17 @@ export default function AiContentDetectionCard({
             <div className="mt-3 space-y-3 text-xs text-slate-300 border-t border-slate-800/80 pt-3">
               <div>
                 <span className="font-semibold text-slate-200">Active Models: </span>
-                <span className="font-mono text-sky-300">{modelInfo.models.join(", ") || "Configured classifiers"}</span>
+                <span className="font-mono text-sky-300">{toList(modelInfo.models).join(", ") || "Configured classifiers"}</span>
               </div>
               <div>
                 <span className="font-semibold text-slate-200">Aggregation Method: </span>
                 <span>{modelInfo.method}</span>
               </div>
-              {modelInfo.limitations && modelInfo.limitations.length > 0 && (
+              {toList(modelInfo.limitations).length > 0 && (
                 <div>
                   <span className="font-semibold text-slate-200 block mb-1">Documented Limitations:</span>
                   <ul className="list-disc pl-4 space-y-1 text-slate-400">
-                    {modelInfo.limitations.map((lim, lIdx) => (
+                    {toList(modelInfo.limitations).map((lim, lIdx) => (
                       <li key={lIdx}>{lim}</li>
                     ))}
                   </ul>

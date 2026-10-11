@@ -471,6 +471,12 @@ async def video_result(token: str) -> dict[str, Any]:
     summaries = entry.get("tool_summaries") if entry else None
     if not isinstance(summaries, dict) or not isinstance(summaries.get("video"), dict):
         raise HTTPException(status_code=404, detail="Video result not found.")
+    for target in [entry.get("nemotron"), summaries.get("nemotron")]:
+        if isinstance(target, dict):
+            if isinstance(target.get("limitations"), str):
+                target["limitations"] = [target["limitations"].strip()]
+            if isinstance(target.get("important_observations"), str):
+                target["important_observations"] = [target["important_observations"].strip()]
     return entry
 
 

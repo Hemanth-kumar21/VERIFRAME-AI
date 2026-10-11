@@ -7,6 +7,12 @@ import AiContentDetectionCard, { AiContentDetectionData } from "./ai-content-det
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
+function toList(val: unknown): string[] {
+  if (Array.isArray(val)) return val.map((x) => String(x).trim()).filter(Boolean);
+  if (typeof val === "string" && val.trim()) return [val.trim()];
+  return [];
+}
+
 type VideoFrameEvidence = {
   timestamp: number;
   frame_index: number;
@@ -76,8 +82,8 @@ type NemotronAnalysis = {
   summary?: string;
   scene_descriptions?: NemotronScene[];
   timestamped_events?: NemotronEvent[];
-  important_observations?: string[];
-  limitations?: string[];
+  important_observations?: string[] | string;
+  limitations?: string[] | string;
   message?: string;
   error?: string;
 };
@@ -610,25 +616,25 @@ export default function VideoResultView({ token }: { token: string }) {
 
               {/* Observations & Model Limitations Grid */}
               <div className="grid gap-4 sm:grid-cols-2">
-                {nemotron.important_observations && nemotron.important_observations.length > 0 && (
+                {toList(nemotron.important_observations).length > 0 && (
                   <div className="rounded-2xl border border-slate-800 bg-slate-950/70 p-5">
                     <h4 className="text-sm font-semibold uppercase tracking-wider text-sky-300">
                       {text.nemotronObservations}
                     </h4>
                     <ul className="mt-3 space-y-2 list-disc pl-5 text-sm text-slate-300 leading-relaxed">
-                      {nemotron.important_observations.map((obs, idx) => (
+                      {toList(nemotron.important_observations).map((obs, idx) => (
                         <li key={idx}>{obs}</li>
                       ))}
                     </ul>
                   </div>
                 )}
-                {nemotron.limitations && nemotron.limitations.length > 0 && (
+                {toList(nemotron.limitations).length > 0 && (
                   <div className="rounded-2xl border border-slate-800 bg-slate-950/70 p-5">
                     <h4 className="text-sm font-semibold uppercase tracking-wider text-amber-300">
                       {text.nemotronLimitations}
                     </h4>
                     <ul className="mt-3 space-y-2 list-disc pl-5 text-sm text-slate-300 leading-relaxed">
-                      {nemotron.limitations.map((lim, idx) => (
+                      {toList(nemotron.limitations).map((lim, idx) => (
                         <li key={idx}>{lim}</li>
                       ))}
                     </ul>
@@ -843,7 +849,7 @@ export default function VideoResultView({ token }: { token: string }) {
           <div className="rounded-2xl border border-slate-700 bg-slate-900/70 p-5">
             <h2 className="text-lg font-semibold">{text.notChecked}</h2>
             <ul className="mt-3 list-disc space-y-2 pl-5 text-sm leading-6 text-slate-300">
-              {video.what_was_not_checked.map((item) => (
+              {toList(video.what_was_not_checked).map((item) => (
                 <li key={item}>{item}</li>
               ))}
             </ul>
@@ -851,7 +857,7 @@ export default function VideoResultView({ token }: { token: string }) {
           <div className="rounded-2xl border border-slate-700 bg-slate-900/70 p-5">
             <h2 className="text-lg font-semibold">{text.limitations}</h2>
             <ul className="mt-3 list-disc space-y-2 pl-5 text-sm leading-6 text-slate-300">
-              {video.limitations.map((item) => (
+              {toList(video.limitations).map((item) => (
                 <li key={item}>{item}</li>
               ))}
             </ul>

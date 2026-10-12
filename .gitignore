@@ -15,3 +15,5 @@ frontend/test-results/
 scratch/
 backend.db
 *.db-journal
+*.zip
+

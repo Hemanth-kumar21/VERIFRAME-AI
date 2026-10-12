@@ -9,7 +9,7 @@
 
 **Veriframe AI** is an evidence-led media forensics and authenticity verification platform for synthetic image and deepfake video detection. It combines deterministic forensic signal analysis with **NVIDIA Nemotron multimodal reasoning**, accelerated by **Nebius Token Factory**.
 
-- **Public Repository URL:** [https://github.com/Hemanth-kumar21/VERIFRAME-AI](https://github.com/Hemanth-kumar21/VERIFRAME-AI)
+- **Public Repository URL:** [https://github.com/Hemanth-kumar21/VERY-FRAME-AI](https://github.com/Hemanth-kumar21/VERY-FRAME-AI)
 - **License:** [MIT License (OSI Approved)](LICENSE)
 
 ---
